@@ -19,7 +19,7 @@ Node.js + TypeScript service for Zeabur. It receives LINE Official Account webho
 - 可選擇將原始音訊保存到 Firebase Storage。
 - 提供 `/health` 健康檢查端點，方便部署平台偵測服務狀態。
 
-### 適用的平台服務
+### 使用的平台服務
 
 - LINE Official Account / LINE Developers：接收使用者語音訊息與設定 Webhook。
 - LINE Messaging API：下載音訊內容、回覆訊息與推播轉錄結果。
