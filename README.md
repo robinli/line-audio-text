@@ -6,6 +6,12 @@ Node.js + TypeScript service for Zeabur. It receives LINE Official Account webho
 
 這是一個可部署到 Zeabur 的 LINE 語音轉文字 Webhook 服務。使用者在 LINE 官方帳號傳送語音訊息後，服務會下載音訊、呼叫 OpenAI Speech-to-Text 轉成文字、把處理紀錄寫入 Firebase Firestore，最後將轉錄結果回傳給 LINE 使用者。
 
+### 架構與流程圖
+
+![LINE 語音轉文字 Webhook 完整服務架構圖](assets/1-LINE%20語音轉文字%20Webhook%20完整服務架構圖.png)
+
+![實際使用情境與服務串接流程](assets/2-實際使用情境與服務串接流程.png)
+
 ### 功能
 
 - 接收 LINE Official Account Webhook 事件。
