@@ -2,6 +2,34 @@
 
 Node.js + TypeScript service for Zeabur. It receives LINE Official Account webhooks, validates the LINE signature with the raw request body, handles audio messages, downloads LINE audio content, transcribes it with OpenAI Speech-to-Text, stores transcript jobs in Firebase Firestore, optionally saves audio to Firebase Storage, and sends the transcript back to the LINE user.
 
+## 中文說明
+
+這是一個可部署到 Zeabur 的 LINE 語音轉文字 Webhook 服務。使用者在 LINE 官方帳號傳送語音訊息後，服務會下載音訊、呼叫 OpenAI Speech-to-Text 轉成文字、把處理紀錄寫入 Firebase Firestore，最後將轉錄結果回傳給 LINE 使用者。
+
+### 功能
+
+- 接收 LINE Official Account Webhook 事件。
+- 使用 LINE 簽章驗證請求，避免未授權來源呼叫 Webhook。
+- 只處理 LINE 音訊訊息，非音訊事件會略過。
+- 從 LINE Messaging API 下載使用者傳來的音訊內容。
+- 使用 OpenAI Speech-to-Text 模型進行語音轉文字。
+- 將轉錄工作狀態寫入 Firebase Firestore，包含 `processing`、`completed`、`failed`。
+- 支援兩階段回覆模式：先回覆「收到音訊，正在轉錄中。」，完成後再推播轉錄結果。
+- 支援單次回覆模式，方便本機測試或短音訊同步處理。
+- 可選擇將原始音訊保存到 Firebase Storage。
+- 提供 `/health` 健康檢查端點，方便部署平台偵測服務狀態。
+
+### 適用的平台服務
+
+- LINE Official Account / LINE Developers：接收使用者語音訊息與設定 Webhook。
+- LINE Messaging API：下載音訊內容、回覆訊息與推播轉錄結果。
+- OpenAI API：使用 Speech-to-Text 進行音訊轉文字。
+- Firebase Firestore：儲存每次轉錄工作的狀態與結果。
+- Firebase Storage：可選，用於保存原始音訊檔。
+- Zeabur：建議的雲端部署平台，搭配本專案的 Dockerfile 使用。
+- Docker：用於容器化部署。
+- Node.js 20+：本機開發、測試與執行服務。
+
 ## Endpoints
 
 - `GET /health` returns `{ "ok": true }`
