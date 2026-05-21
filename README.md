@@ -157,4 +157,4 @@ Enable webhook events in the LINE Developers Console.
 
 ## 使用畫面
 
-![LINE官方帳號對話截圖](assets/3-LINE官方帳號對話截圖)
+![LINE官方帳號對話截圖](assets/3-LINE官方帳號對話截圖.png)
