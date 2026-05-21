@@ -2,7 +2,7 @@ import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { FirebaseAudioStorage, FirestoreTranscriptJobsRepository, initializeFirebase } from './firebase.js';
 import { LineHttpClient } from './lineClient.js';
-import { OpenAITranscriber } from './openaiTranscriber.js';
+import { OpenAITranscriber, OpenAITranscriptFormatter } from './openaiTranscriber.js';
 
 const config = loadConfig();
 initializeFirebase(config);
@@ -12,6 +12,7 @@ const app = createApp({
   lineClient: new LineHttpClient(config.lineChannelAccessToken),
   jobs: new FirestoreTranscriptJobsRepository(),
   transcriber: new OpenAITranscriber(config.openaiApiKey, config.openaiTranscriptionModel),
+  formatter: new OpenAITranscriptFormatter(config.openaiApiKey, config.openaiTextModel),
   audioStorage: config.storeAudio ? new FirebaseAudioStorage() : undefined
 });
 

@@ -7,6 +7,7 @@ export interface AppConfig {
   lineReplyMode: 'two_step' | 'single_reply';
   openaiApiKey: string;
   openaiTranscriptionModel: string;
+  openaiTextModel: string;
   firebaseStorageBucket?: string;
   storeAudio: boolean;
 }
@@ -53,7 +54,10 @@ export interface TranscriptJobCreateInput {
 export interface TranscriptJobUpdateInput {
   status: TranscriptStatus;
   transcript?: string;
+  rawTranscriptText?: string;
+  formattedTranscriptText?: string;
   errorMessage?: string;
+  formatErrorMessage?: string;
   audioStoragePath?: string;
   completedAt?: Date;
   failedAt?: Date;
@@ -77,4 +81,8 @@ export interface AudioStorage {
 
 export interface Transcriber {
   transcribe(audio: Buffer, filename: string): Promise<string>;
+}
+
+export interface TranscriptFormatter {
+  formatTranscriptText(rawText: string): Promise<string>;
 }

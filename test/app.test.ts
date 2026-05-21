@@ -12,6 +12,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     lineReplyMode: 'single_reply',
     openaiApiKey: 'openai-key',
     openaiTranscriptionModel: 'gpt-4o-mini-transcribe',
+    openaiTextModel: 'gpt-5.2',
     storeAudio: false,
     ...overrides
   };
@@ -36,6 +37,9 @@ describe('createApp', () => {
       },
       transcriber: {
         transcribe: vi.fn()
+      },
+      formatter: {
+        formatTranscriptText: vi.fn()
       }
     });
 
@@ -59,6 +63,9 @@ describe('createApp', () => {
       },
       transcriber: {
         transcribe: vi.fn()
+      },
+      formatter: {
+        formatTranscriptText: vi.fn()
       }
     });
 
@@ -71,7 +78,7 @@ describe('createApp', () => {
     expect(response.body.error.code).toBe('INVALID_SIGNATURE');
   });
 
-  it('downloads audio, transcribes it, stores the completed job, and replies with transcript', async () => {
+  it('downloads audio, transcribes it, stores the completed job, and replies with formatted transcript', async () => {
     const body: LineWebhookBody = {
       events: [
         {
@@ -95,13 +102,17 @@ describe('createApp', () => {
       updateJob: vi.fn().mockResolvedValue(undefined)
     };
     const transcriber = {
-      transcribe: vi.fn().mockResolvedValue('逐字稿內容')
+      transcribe: vi.fn().mockResolvedValue('今天來聊一下 open ai 跟 line 語音')
+    };
+    const formatter = {
+      formatTranscriptText: vi.fn().mockResolvedValue('今天來聊一下 OpenAI 跟 LINE 語音。')
     };
     const app = createApp({
       config: makeConfig(),
       lineClient,
       jobs,
-      transcriber
+      transcriber,
+      formatter
     });
 
     const response = await request(app)
@@ -113,9 +124,73 @@ describe('createApp', () => {
     expect(response.status).toBe(200);
     expect(lineClient.downloadMessageContent).toHaveBeenCalledWith('message-1');
     expect(transcriber.transcribe).toHaveBeenCalledWith(Buffer.from('audio'), 'message-1.m4a');
+    expect(formatter.formatTranscriptText).toHaveBeenCalledWith('今天來聊一下 open ai 跟 line 語音');
     expect(jobs.createJob).toHaveBeenCalledWith(expect.objectContaining({ status: 'processing', messageId: 'message-1' }));
-    expect(jobs.updateJob).toHaveBeenCalledWith('job-1', expect.objectContaining({ status: 'completed', transcript: '逐字稿內容' }));
-    expect(lineClient.replyText).toHaveBeenCalledWith('reply-token', '逐字稿內容');
+    expect(jobs.updateJob).toHaveBeenCalledWith(
+      'job-1',
+      expect.objectContaining({
+        status: 'completed',
+        rawTranscriptText: '今天來聊一下 open ai 跟 line 語音',
+        formattedTranscriptText: '今天來聊一下 OpenAI 跟 LINE 語音。'
+      })
+    );
+    expect(lineClient.replyText).toHaveBeenCalledWith('reply-token', '今天來聊一下 OpenAI 跟 LINE 語音。');
+  });
+
+  it('stores format errors and replies with raw transcript when formatting fails', async () => {
+    const body: LineWebhookBody = {
+      events: [
+        {
+          type: 'message',
+          webhookEventId: 'event-1',
+          replyToken: 'reply-token',
+          source: { type: 'user', userId: 'user-1' },
+          message: { id: 'message-1', type: 'audio' }
+        }
+      ]
+    };
+    const rawBodyText = JSON.stringify(body);
+    const rawBody = Buffer.from(rawBodyText);
+    const lineClient = {
+      replyText: vi.fn().mockResolvedValue(undefined),
+      pushText: vi.fn().mockResolvedValue(undefined),
+      downloadMessageContent: vi.fn().mockResolvedValue(Buffer.from('audio'))
+    };
+    const jobs = {
+      createJob: vi.fn().mockResolvedValue('job-1'),
+      updateJob: vi.fn().mockResolvedValue(undefined)
+    };
+    const transcriber = {
+      transcribe: vi.fn().mockResolvedValue('原始逐字稿內容')
+    };
+    const formatter = {
+      formatTranscriptText: vi.fn().mockRejectedValue(new Error('format failed'))
+    };
+    const app = createApp({
+      config: makeConfig(),
+      lineClient,
+      jobs,
+      transcriber,
+      formatter
+    });
+
+    const response = await request(app)
+      .post('/webhook')
+      .set('content-type', 'application/json')
+      .set('x-line-signature', sign(rawBody))
+      .send(rawBodyText);
+
+    expect(response.status).toBe(200);
+    expect(jobs.updateJob).toHaveBeenCalledWith(
+      'job-1',
+      expect.objectContaining({
+        status: 'completed',
+        rawTranscriptText: '原始逐字稿內容',
+        formattedTranscriptText: '原始逐字稿內容',
+        formatErrorMessage: 'format failed'
+      })
+    );
+    expect(lineClient.replyText).toHaveBeenCalledWith('reply-token', '原始逐字稿內容');
   });
 
   it('marks the Firestore job failed when transcription fails', async () => {
@@ -144,11 +219,15 @@ describe('createApp', () => {
     const transcriber = {
       transcribe: vi.fn().mockRejectedValue(new Error('OpenAI failed'))
     };
+    const formatter = {
+      formatTranscriptText: vi.fn()
+    };
     const app = createApp({
       config: makeConfig(),
       lineClient,
       jobs,
-      transcriber
+      transcriber,
+      formatter
     });
 
     const response = await request(app)

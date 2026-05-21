@@ -1,10 +1,10 @@
 # LINE Audio Transcript Webhook
 
-Node.js + TypeScript service for Zeabur. It receives LINE Official Account webhooks, validates the LINE signature with the raw request body, handles audio messages, downloads LINE audio content, transcribes it with OpenAI Speech-to-Text, stores transcript jobs in Firebase Firestore, optionally saves audio to Firebase Storage, and sends the transcript back to the LINE user.
+Node.js + TypeScript service for Zeabur. It receives LINE Official Account webhooks, validates the LINE signature with the raw request body, handles audio messages, downloads LINE audio content, transcribes it with OpenAI Speech-to-Text, formats the transcript with an OpenAI text model, stores transcript jobs in Firebase Firestore, optionally saves audio to Firebase Storage, and sends the formatted transcript back to the LINE user.
 
 ## 中文說明
 
-這是一個可部署到 Zeabur 的 LINE 語音轉文字 Webhook 服務。使用者在 LINE 官方帳號傳送語音訊息後，服務會下載音訊、呼叫 OpenAI Speech-to-Text 轉成文字、把處理紀錄寫入 Firebase Firestore，最後將轉錄結果回傳給 LINE 使用者。
+這是一個可部署到 Zeabur 的 LINE 語音轉文字 Webhook 服務。使用者在 LINE 官方帳號傳送語音訊息後，服務會下載音訊、呼叫 OpenAI Speech-to-Text 轉成文字，再用 OpenAI 文字模型整理成繁體中文可讀逐字稿，把處理紀錄寫入 Firebase Firestore，最後將整理後結果回傳給 LINE 使用者。
 
 ### 架構與流程圖
 
@@ -19,6 +19,7 @@ Node.js + TypeScript service for Zeabur. It receives LINE Official Account webho
 - 只處理 LINE 音訊訊息，非音訊事件會略過。
 - 從 LINE Messaging API 下載使用者傳來的音訊內容。
 - 使用 OpenAI Speech-to-Text 模型進行語音轉文字。
+- 使用 OpenAI 文字模型整理逐字稿：加入標點、自然分段、保留原意與口語語氣，並維持 AI、LINE、OpenAI、Codex 等常見中英混合寫法。
 - 將轉錄工作狀態寫入 Firebase Firestore，包含 `processing`、`completed`、`failed`。
 - 支援兩階段回覆模式：先回覆「收到音訊，正在轉錄中。」，完成後再推播轉錄結果。
 - 支援單次回覆模式，方便本機測試或短音訊同步處理。
@@ -29,7 +30,7 @@ Node.js + TypeScript service for Zeabur. It receives LINE Official Account webho
 
 - LINE Official Account / LINE Developers：接收使用者語音訊息與設定 Webhook。
 - LINE Messaging API：下載音訊內容、回覆訊息與推播轉錄結果。
-- OpenAI API：使用 Speech-to-Text 進行音訊轉文字。
+- OpenAI API：使用 Speech-to-Text 進行音訊轉文字，並使用文字模型整理逐字稿格式。
 - Firebase Firestore：儲存每次轉錄工作的狀態與結果。
 - Firebase Storage：可選，用於保存原始音訊檔。
 - Zeabur：建議的雲端部署平台，搭配本專案的 Dockerfile 使用。
@@ -47,9 +48,9 @@ Node.js + TypeScript service for Zeabur. It receives LINE Official Account webho
 
 1. Reply immediately with `收到音訊，正在轉錄中。`
 2. Process the audio in the background
-3. Push the transcript to the LINE user when complete
+3. Push the formatted transcript to the LINE user when complete
 
-Set `LINE_REPLY_MODE=single_reply` only for testing or short synchronous processing. In that mode the service waits for transcription and uses the LINE reply token for the final transcript.
+Set `LINE_REPLY_MODE=single_reply` only for testing or short synchronous processing. In that mode the service waits for transcription and formatting, then uses the LINE reply token for the final formatted transcript.
 
 ## Firestore
 
@@ -62,8 +63,11 @@ Typical fields:
 - `userId`
 - `sourceType`
 - `status`: `processing`, `completed`, or `failed`
-- `transcript`
+- `rawTranscriptText`
+- `formattedTranscriptText`
+- `transcript`: same content as `formattedTranscriptText`, retained for compatibility
 - `errorMessage`
+- `formatErrorMessage`
 - `audioStoragePath`
 - `createdAt`
 - `updatedAt`
@@ -71,6 +75,8 @@ Typical fields:
 - `failedAt`
 
 If transcription fails, the service updates the job with `status = failed`.
+
+If transcript formatting fails, the job still completes. The service records `formatErrorMessage`, stores `formattedTranscriptText` as the raw transcript text, and replies to LINE with the raw transcript text instead of failing the whole workflow.
 
 ## Environment Variables
 
@@ -90,6 +96,7 @@ Optional:
 - `PORT`, defaults to `3000`
 - `LINE_REPLY_MODE`, defaults to `two_step`
 - `OPENAI_TRANSCRIPTION_MODEL`, defaults to `gpt-4o-mini-transcribe`
+- `OPENAI_TEXT_MODEL`, defaults to `gpt-5.2`
 - `STORE_AUDIO`, defaults to `false`
 - `FIREBASE_STORAGE_BUCKET`, required only when `STORE_AUDIO=true`
 

@@ -6,6 +6,7 @@ import type {
   LineClient,
   LineWebhookBody,
   LineWebhookEvent,
+  TranscriptFormatter,
   Transcriber,
   TranscriptJobsRepository
 } from './types.js';
@@ -15,6 +16,7 @@ export interface AppDependencies {
   lineClient: LineClient;
   jobs: TranscriptJobsRepository;
   transcriber: Transcriber;
+  formatter: TranscriptFormatter;
   audioStorage?: AudioStorage;
 }
 
@@ -87,17 +89,21 @@ async function processEvent(event: LineWebhookEvent, deps: AppDependencies, resp
     const audio = await deps.lineClient.downloadMessageContent(messageId);
     const audioStoragePath =
       deps.config.storeAudio && deps.audioStorage ? await deps.audioStorage.saveAudio(messageId, audio, 'audio/mp4') : undefined;
-    const transcript = await deps.transcriber.transcribe(audio, `${messageId}.m4a`);
+    const rawTranscriptText = await deps.transcriber.transcribe(audio, `${messageId}.m4a`);
+    const { formattedTranscriptText, formatErrorMessage } = await formatTranscriptText(deps.formatter, rawTranscriptText);
 
     await deps.jobs.updateJob(jobId, {
       status: 'completed',
-      transcript,
+      transcript: formattedTranscriptText,
+      rawTranscriptText,
+      formattedTranscriptText,
+      formatErrorMessage,
       audioStoragePath,
       completedAt: new Date(),
       updatedAt: new Date()
     });
 
-    await sendResult(event, deps.lineClient, responseMode, transcript);
+    await sendResult(event, deps.lineClient, responseMode, formattedTranscriptText);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown transcription error';
     await deps.jobs.updateJob(jobId, {
@@ -108,6 +114,18 @@ async function processEvent(event: LineWebhookEvent, deps: AppDependencies, resp
     });
 
     await sendResult(event, deps.lineClient, responseMode, `轉錄失敗，請稍後再試。\n${errorMessage}`);
+  }
+}
+
+async function formatTranscriptText(
+  formatter: TranscriptFormatter,
+  rawTranscriptText: string
+): Promise<{ formattedTranscriptText: string; formatErrorMessage?: string }> {
+  try {
+    return { formattedTranscriptText: await formatter.formatTranscriptText(rawTranscriptText) };
+  } catch (error) {
+    const formatErrorMessage = error instanceof Error ? error.message : 'Unknown transcript formatting error';
+    return { formattedTranscriptText: rawTranscriptText, formatErrorMessage };
   }
 }
 

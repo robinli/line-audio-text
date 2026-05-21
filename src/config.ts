@@ -11,6 +11,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     lineReplyMode,
     openaiApiKey: required(env.OPENAI_API_KEY, 'OPENAI_API_KEY'),
     openaiTranscriptionModel: env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-4o-mini-transcribe',
+    openaiTextModel: env.OPENAI_TEXT_MODEL ?? 'gpt-5.2',
     firebaseStorageBucket: env.FIREBASE_STORAGE_BUCKET,
     storeAudio: env.STORE_AUDIO === 'true'
   };
